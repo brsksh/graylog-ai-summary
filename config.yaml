@@ -1,0 +1,65 @@
+# ============================================================
+# Graylog AI Summary – Configuration
+# ============================================================
+
+graylog:
+  base_url: "https://graylog.example.com" # Your Graylog URL
+  api_token: "YOUR_API_TOKEN" # Graylog API token (see README)
+  stream_id: "YOUR_STREAM_ID" # Streams > stream URL contains the ID
+  verify_ssl: true # false if self-signed cert
+
+ollama:
+  base_url: "http://ollama-server:11434" # Ollama server URL
+  model: "qwen2.5:72b" # Or llama3.3:70b etc.
+  timeout: 300 # Seconds; 120B models need more
+  verify_ssl: true # false if Ollama uses self-signed HTTPS cert
+
+slack:
+  webhook_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+  channel: "#ops-alerts" # Optional; overrides webhook default
+  username: "GraylogAI"
+  icon_emoji: ":mag:"
+
+# Optional: send summary to Telegram (bot via @BotFather, chat_id e.g. via @userinfobot)
+telegram:
+  bot_token: "" # or TELEGRAM_BOT_TOKEN in .env
+  chat_id: "" # or TELEGRAM_CHAT_ID in .env
+
+summary:
+  lookback_hours: 24 # Analysis time window
+  max_logs_per_source: 40 # Max logs per source sent to Ollama
+  max_total_logs: 500 # Hard limit (context protection)
+  language: "en" # "de" or "en" for summary language
+
+  # Which logs to include: by severity and/or security keywords
+  # error_levels: "all" = all levels 0–7; or list e.g. [0,1,2,3] for Emergency/Alert/Critical/Error only
+  error_levels:
+    - 0 # Emergency
+    - 1 # Alert
+    - 2 # Critical
+    - 3 # Error
+    - 4 # Warning
+    # - 5 # Notice
+    # - 6 # Info
+    # - 7 # Debug
+  # security_keywords: leave [] = no security search; otherwise terms (case-insensitive in message)
+  security_keywords:
+    - "unauthorized"
+    - "forbidden"
+    - "authentication failed"
+    - "login failed"
+    - "invalid token"
+    - "permission denied"
+    - "access denied"
+    - "brute force"
+    - "sql injection"
+    - "xss"
+    - "exploit"
+    - "malware"
+    - "intrusion"
+    - "denied"
+    - "blocked"
+    - "suspicious"
+    - "attack"
+    - "breach"
+    - "compromise"

@@ -1,0 +1,10 @@
+[project]
+name = "graylog-ai-summary"
+version = "0.1.0"
+description = "Graylog AI Log Summary – Analyze logs with Ollama, send to Telegram/Slack"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.28.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
