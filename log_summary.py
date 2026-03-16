@@ -66,6 +66,11 @@ def load_config(path: str) -> dict:
     path = _resolve_config_path(path)
     with open(path) as f:
         cfg = yaml.safe_load(f)
+    # Defaults
+    cfg.setdefault("llm", {})
+    cfg["llm"].setdefault("provider", "ollama")
+    cfg.setdefault("ollama", {})
+    cfg.setdefault("lmstudio", {})
     # Environment variables override config (for .env testing)
     if os.environ.get("GRAYLOG_BASE_URL"):
         cfg["graylog"]["base_url"] = os.environ["GRAYLOG_BASE_URL"].rstrip("/")
@@ -79,6 +84,15 @@ def load_config(path: str) -> dict:
         cfg["ollama"]["bearer_token"] = os.environ["OLLAMA_BEARER_TOKEN"]
     if os.environ.get("OLLAMA_MODEL"):
         cfg["ollama"]["model"] = os.environ["OLLAMA_MODEL"]
+    if os.environ.get("LLM_PROVIDER"):
+        cfg["llm"]["provider"] = os.environ["LLM_PROVIDER"].strip().lower()
+    # LM Studio overrides (OpenAI-compatible API)
+    if os.environ.get("LMSTUDIO_BASE_URL"):
+        cfg["lmstudio"]["base_url"] = os.environ["LMSTUDIO_BASE_URL"].rstrip("/")
+    if os.environ.get("LMSTUDIO_MODEL"):
+        cfg["lmstudio"]["model"] = os.environ["LMSTUDIO_MODEL"]
+    if os.environ.get("LMSTUDIO_API_KEY"):
+        cfg["lmstudio"]["api_key"] = os.environ["LMSTUDIO_API_KEY"]
     cfg.setdefault("telegram", {})
     if os.environ.get("TELEGRAM_BOT_TOKEN"):
         cfg["telegram"]["bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -282,7 +296,7 @@ Deine Analyse (beginne mit ## Kritische Fehler bzw. ## Critical Errors):"""
     return prompt
 
 
-# ── Ollama ────────────────────────────────────────────────────────────────────
+# ── LLM backends ───────────────────────────────────────────────────────────────
 def query_ollama(prompt: str, cfg: dict) -> str:
     """Send prompt to Ollama and return the response."""
     url = f"{cfg['ollama']['base_url']}/api/generate"
@@ -309,6 +323,54 @@ def query_ollama(prompt: str, cfg: dict) -> str:
     resp.raise_for_status()
     result = resp.json()
     return result.get("response", "").strip()
+
+
+def query_lmstudio(prompt: str, cfg: dict) -> str:
+    """
+    Send prompt to LM Studio (OpenAI-compatible API) and return the response.
+    Expects an OpenAI-style /v1/chat/completions endpoint.
+    """
+    lm_cfg = cfg.get("lmstudio", {})
+    base_url = lm_cfg.get("base_url", "").rstrip("/")
+    model = lm_cfg.get("model")
+    if not base_url or not model:
+        raise ValueError("LM Studio provider selected but lmstudio.base_url or lmstudio.model is not configured")
+
+    url = f"{base_url}/v1/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant for analyzing Graylog logs."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 2048,
+    }
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    api_key = lm_cfg.get("api_key") or os.environ.get("LMSTUDIO_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    verify_ssl = lm_cfg.get("verify_ssl", True)
+    timeout = lm_cfg.get("timeout", 300)
+    log.info(f"Querying LM Studio: {model} @ {base_url}")
+    resp = requests.post(url, json=payload, headers=headers, timeout=timeout, verify=verify_ssl)
+    resp.raise_for_status()
+    data = resp.json()
+    # OpenAI-compatible response shape
+    try:
+        return (data["choices"][0]["message"]["content"] or "").strip()
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"Unexpected LM Studio response format: {data!r}") from exc
+
+
+def generate_summary(prompt: str, cfg: dict) -> str:
+    """Dispatch to the configured LLM backend and return the summary text."""
+    provider = (cfg.get("llm", {}).get("provider") or "ollama").strip().lower()
+    if provider == "ollama":
+        return query_ollama(prompt, cfg)
+    if provider == "lmstudio":
+        return query_lmstudio(prompt, cfg)
+    raise ValueError(f"Unsupported LLM provider: {provider!r}")
 
 
 # ── Parse & Format (LLM output → structured → channel) ─────────────────────────
@@ -691,8 +753,8 @@ def main():
 
     log.info(f"Prompt length: {len(prompt)} characters")
 
-    # 4. Ollama fragen
-    summary = query_ollama(prompt, cfg)
+    # 4. LLM fragen (Ollama oder LM Studio)
+    summary = generate_summary(prompt, cfg)
 
     if args.dry_run:
         print("\n" + "=" * 60)

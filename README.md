@@ -1,6 +1,6 @@
 # Graylog AI Summary – Setup
 
-Fetches error and security logs from Graylog, analyzes them with Ollama, and sends a structured summary to Telegram and/or Slack.
+Fetches error and security logs from Graylog, analyzes them with an LLM (Ollama or LM Studio), and sends a structured summary to Telegram and/or Slack.
 
 ---
 
@@ -89,11 +89,73 @@ Instead of putting tokens in `config.yaml`, you can use a `.env` file (ignored b
 
 ```bash
 cp .env.example .env
-# Edit .env: set GRAYLOG_API_TOKEN, GRAYLOG_STREAM_ID, OLLAMA_BASE_URL, OLLAMA_BEARER_TOKEN
+# Edit .env: set GRAYLOG_API_TOKEN, GRAYLOG_STREAM_ID
+# Then choose your LLM backend and settings (Ollama or LM Studio)
 ```
 
-Environment variables override values from `config.yaml`. This lets you test with your Graylog token and Bearer-secured Ollama instance without changing the config. **Language:** `SUMMARY_LANGUAGE=de` (default) or `SUMMARY_LANGUAGE=en` for English summaries (or set `summary.language` in `config.yaml`).  
-**Which logs:** `SUMMARY_ERROR_LEVELS=all` or `0,1,2,3` (comma-separated); `SUMMARY_SECURITY_KEYWORDS=keyword1,keyword2` or leave unset to use `config.yaml`.
+Environment variables override values from `config.yaml`. This lets you test with your Graylog token and your preferred LLM backend without changing `config.yaml`.
+
+- **Language:** `SUMMARY_LANGUAGE=de` (default) or `SUMMARY_LANGUAGE=en` for English summaries (or set `summary.language` in `config.yaml`).  
+- **Which logs:** `SUMMARY_ERROR_LEVELS=all` or `0,1,2,3` (comma-separated); `SUMMARY_SECURITY_KEYWORDS=keyword1,keyword2` or leave unset to use `config.yaml`.
+
+### Choosing the LLM backend (Ollama vs LM Studio)
+
+The script can talk to either **Ollama** or **LM Studio (OpenAI-compatible server)**.
+
+- Default provider is **Ollama**.
+- Configure the provider in `config.yaml` under `llm.provider` or via `LLM_PROVIDER` in `.env`.
+
+#### Using Ollama (default)
+
+In `config.yaml`:
+
+```yaml
+llm:
+  provider: "ollama"
+
+ollama:
+  base_url: "http://ollama-server:11434"
+  model: "qwen2.5:72b"
+  timeout: 300
+  verify_ssl: true
+```
+
+In `.env` (overrides config):
+
+```bash
+# LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:72b
+# OLLAMA_BEARER_TOKEN=your_ollama_bearer_token
+```
+
+#### Using LM Studio
+
+Start LM Studio with the **OpenAI-compatible API server** enabled (e.g. listening on `http://localhost:1234`), and load a chat/instruct model.
+
+In `config.yaml`:
+
+```yaml
+llm:
+  provider: "lmstudio"
+
+lmstudio:
+  base_url: "http://localhost:1234"      # LM Studio OpenAI server
+  model: "qwen2.5:32b-instruct"          # Adjust to your local model name
+  timeout: 300
+  verify_ssl: false
+```
+
+In `.env`:
+
+```bash
+LLM_PROVIDER=lmstudio
+LMSTUDIO_BASE_URL=http://localhost:1234
+LMSTUDIO_MODEL=qwen2.5:32b-instruct
+# LMSTUDIO_API_KEY=your_lmstudio_api_key_if_configured
+```
+
+If `llm.provider` is not set, the script assumes `ollama`.
 
 ## 1. Create Graylog API token
 

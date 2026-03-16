@@ -8,11 +8,20 @@ graylog:
   stream_id: "YOUR_STREAM_ID" # Streams > stream URL contains the ID
   verify_ssl: true # false if self-signed cert
 
+llm:
+  provider: "ollama" # "ollama" (default) or "lmstudio"
+
 ollama:
   base_url: "http://ollama-server:11434" # Ollama server URL
   model: "qwen2.5:72b" # Or llama3.3:70b etc.
   timeout: 300 # Seconds; 120B models need more
   verify_ssl: true # false if Ollama uses self-signed HTTPS cert
+
+lmstudio:
+  base_url: "http://localhost:1234" # LM Studio OpenAI-compatible server URL
+  model: "qwen2.5:32b-instruct" # Example; adjust to your local model
+  timeout: 300 # Seconds
+  verify_ssl: false # LM Studio is typically HTTP-only or self-signed
 
 slack:
   webhook_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
